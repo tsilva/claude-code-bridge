@@ -45,13 +45,14 @@ MODEL_MAP = {
 AVAILABLE_MODELS = ["opus", "sonnet", "haiku"]
 
 
-def map_model(model: str) -> str:
-    """Map incoming model name to Claude Code SDK model."""
+def map_model(model: str | None) -> str | None:
+    """Map incoming model name to Claude Code SDK model, or None for local default."""
+    if not model:
+        return None  # Use local Claude Code settings
     model_lower = model.lower()
     if model_lower in MODEL_MAP:
         return MODEL_MAP[model_lower]
-    # Default to sonnet if unknown
-    return "sonnet"
+    return None  # Unknown model → use local settings
 
 
 def format_messages(messages: list[Message]) -> str:
@@ -74,7 +75,7 @@ def format_messages(messages: list[Message]) -> str:
     return prompt
 
 
-async def call_claude_sdk(prompt: str, model: str, logger: SessionLogger) -> str:
+async def call_claude_sdk(prompt: str, model: str | None, logger: SessionLogger) -> str:
     """Call Claude Code SDK and return response text."""
     options = ClaudeAgentOptions(
         model=map_model(model),
@@ -97,7 +98,7 @@ async def call_claude_sdk(prompt: str, model: str, logger: SessionLogger) -> str
     return response_text
 
 
-async def stream_claude_sdk(prompt: str, model: str, request_id: str, logger: SessionLogger):
+async def stream_claude_sdk(prompt: str, model: str | None, request_id: str, logger: SessionLogger):
     """Stream Claude Code SDK response as SSE chunks."""
     options = ClaudeAgentOptions(
         model=map_model(model),

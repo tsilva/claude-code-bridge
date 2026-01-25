@@ -10,7 +10,7 @@ class Message(BaseModel):
 
 
 class ChatCompletionRequest(BaseModel):
-    model: str
+    model: str | None = None  # None = use local Claude Code settings
     messages: list[Message]
     temperature: float | None = None
     max_tokens: int | None = None
