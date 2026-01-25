@@ -38,7 +38,7 @@ class ChatCompletionResponse(BaseModel):
     id: str
     object: str = "chat.completion"
     created: int
-    model: str
+    model: str | None = None  # None when using local Claude Code settings
     choices: list[Choice]
     usage: Usage = Field(default_factory=Usage)
 
@@ -58,7 +58,7 @@ class ChatCompletionChunk(BaseModel):
     id: str
     object: str = "chat.completion.chunk"
     created: int
-    model: str
+    model: str | None = None  # None when using local Claude Code settings
     choices: list[StreamChoice]
 
 

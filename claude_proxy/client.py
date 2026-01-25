@@ -8,16 +8,17 @@ import httpx
 
 
 DEFAULT_URL = "http://localhost:8000"
-DEFAULT_MODEL = "sonnet"
+DEFAULT_MODEL = None  # Use local Claude Code settings
 
 
-def stream_response(client: httpx.Client, url: str, model: str, prompt: str) -> None:
+def stream_response(client: httpx.Client, url: str, model: str | None, prompt: str) -> None:
     """Stream a response from the proxy and print as it arrives."""
     payload = {
-        "model": model,
         "messages": [{"role": "user", "content": prompt}],
         "stream": True,
     }
+    if model:
+        payload["model"] = model
 
     with client.stream("POST", f"{url}/v1/chat/completions", json=payload) as response:
         response.raise_for_status()
@@ -38,13 +39,14 @@ def stream_response(client: httpx.Client, url: str, model: str, prompt: str) -> 
     print()  # Final newline
 
 
-def get_response(client: httpx.Client, url: str, model: str, prompt: str) -> str:
+def get_response(client: httpx.Client, url: str, model: str | None, prompt: str) -> str:
     """Get a non-streaming response from the proxy."""
     payload = {
-        "model": model,
         "messages": [{"role": "user", "content": prompt}],
         "stream": False,
     }
+    if model:
+        payload["model"] = model
 
     response = client.post(f"{url}/v1/chat/completions", json=payload)
     response.raise_for_status()
@@ -70,7 +72,7 @@ def main() -> None:
     parser.add_argument(
         "--model", "-m",
         default=DEFAULT_MODEL,
-        help=f"Model to use (default: {DEFAULT_MODEL})",
+        help="Model to use: opus, sonnet, haiku (default: local Claude Code settings)",
     )
     parser.add_argument(
         "--url", "-u",
