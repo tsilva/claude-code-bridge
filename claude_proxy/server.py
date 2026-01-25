@@ -77,9 +77,10 @@ def format_messages(messages: list[Message]) -> str:
 
 async def call_claude_sdk(prompt: str, model: str | None, logger: SessionLogger) -> str:
     """Call Claude Code SDK and return response text."""
+    mapped_model = map_model(model)
     options = ClaudeAgentOptions(
-        model=map_model(model),
         max_turns=1,
+        **({"model": mapped_model} if mapped_model else {}),
     )
 
     response_text = ""
@@ -100,9 +101,10 @@ async def call_claude_sdk(prompt: str, model: str | None, logger: SessionLogger)
 
 async def stream_claude_sdk(prompt: str, model: str | None, request_id: str, logger: SessionLogger):
     """Stream Claude Code SDK response as SSE chunks."""
+    mapped_model = map_model(model)
     options = ClaudeAgentOptions(
-        model=map_model(model),
         max_turns=1,
+        **({"model": mapped_model} if mapped_model else {}),
     )
 
     created = int(time.time())

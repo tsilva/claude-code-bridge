@@ -18,8 +18,8 @@ test = [
 ]
 
 [project.scripts]
-claude-bridge = "claude_proxy.server:main"
-claude-client = "claude_proxy.client:main"
+claude-code-bridge = "claude_proxy.server:main"
+claude-code-client = "claude_proxy.client:main"
 
 [build-system]
 requires = ["hatchling"]

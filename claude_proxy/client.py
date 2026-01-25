@@ -57,9 +57,9 @@ def main() -> None:
     parser = argparse.ArgumentParser(
         description="Send a prompt to the Claude proxy and get a response.",
         epilog="Examples:\n"
-               "  claude-client 'What is Python?'\n"
-               "  echo 'Hello' | claude-client\n"
-               "  claude-client --model opus 'Explain decorators'",
+               "  claude-code-client 'What is Python?'\n"
+               "  echo 'Hello' | claude-code-client\n"
+               "  claude-code-client --model opus 'Explain decorators'",
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument(
@@ -105,7 +105,7 @@ def main() -> None:
                 stream_response(client, args.url, args.model, prompt)
     except httpx.ConnectError:
         print(f"Error: Could not connect to proxy at {args.url}", file=sys.stderr)
-        print("Make sure the proxy is running: claude-bridge", file=sys.stderr)
+        print("Make sure the proxy is running: claude-code-bridge", file=sys.stderr)
         sys.exit(1)
     except httpx.HTTPStatusError as e:
         print(f"Error: HTTP {e.response.status_code}", file=sys.stderr)

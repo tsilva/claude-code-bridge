@@ -18,18 +18,21 @@
 - 🌊 **Streaming support** — Real-time SSE responses matching OpenAI format
 - 🔀 **Concurrent requests** — Handles multiple requests with semaphore limiting
 - 📝 **Session logging** — Full request/response logging for debugging
+- 🎯 **Local model defaults** — Omit model to use your Claude Code settings
 
 ## Quick Start
 
 ```bash
-# Clone and install
+# Install globally
+uv tool install git+https://github.com/tsilva/claude-code-bridge
+
+# Or install from source
 git clone https://github.com/tsilva/claude-code-bridge
 cd claude-code-bridge
-uv venv && uv pip install -e .
+uv pip install -e .
 
 # Run the server
-source .venv/bin/activate
-claude-bridge
+claude-code-bridge
 ```
 
 Server starts at `http://localhost:8000`
@@ -39,6 +42,14 @@ Server starts at `http://localhost:8000`
 ### With curl
 
 ```bash
+# Use your local Claude Code model settings (omit model)
+curl -X POST http://localhost:8000/v1/chat/completions \
+  -H "Content-Type: application/json" \
+  -d '{
+    "messages": [{"role": "user", "content": "Hello!"}]
+  }'
+
+# Or specify a model explicitly
 curl -X POST http://localhost:8000/v1/chat/completions \
   -H "Content-Type: application/json" \
   -d '{
@@ -80,22 +91,23 @@ for chunk in stream:
 
 ```bash
 # Direct prompt
-claude-client "What is Python?"
+claude-code-client "What is Python?"
 
 # Pipe from stdin
-echo "Hello" | claude-client
+echo "Hello" | claude-code-client
 
 # Use different model
-claude-client --model opus "Explain decorators"
+claude-code-client --model opus "Explain decorators"
 
 # Non-streaming mode
-claude-client --no-stream "Quick answer"
+claude-code-client --no-stream "Quick answer"
 ```
 
 ## Available Models
 
 | Model ID | Description |
 |----------|-------------|
+| *(omit)* | Use local Claude Code settings |
 | `opus` | Claude Opus (most capable) |
 | `sonnet` | Claude Sonnet (balanced) |
 | `haiku` | Claude Haiku (fastest) |
@@ -112,7 +124,7 @@ Also accepts: `claude-opus`, `claude-sonnet`, `claude-haiku`, `claude-3-sonnet`,
 
 ## Configuration
 
-The proxy uses your existing Claude Code authentication:
+The bridge uses your existing Claude Code authentication:
 
 ```bash
 claude login
