@@ -35,12 +35,13 @@ class TestListModels:
     """Tests for the /v1/models endpoint."""
 
     def test_list_models(self, client):
-        """Verify list_models returns opus, sonnet, haiku."""
+        """Verify list_models returns OpenRouter-style model slugs."""
         models = client.list_models()
 
-        assert "opus" in models
-        assert "sonnet" in models
-        assert "haiku" in models
+        # Check for OpenRouter-style slugs
+        assert any("opus" in m for m in models)
+        assert any("sonnet" in m for m in models)
+        assert any("haiku" in m for m in models)
 
 
 class TestChatCompletion:
@@ -107,3 +108,23 @@ class TestModelSelection:
 
         assert isinstance(response, str)
         assert len(response) > 0
+
+    @pytest.mark.parametrize("model,expected_name", [
+        ("haiku", "haiku"),
+        ("sonnet", "sonnet"),
+        ("opus", "opus"),
+    ])
+    def test_model_switching(self, client, model, expected_name):
+        """Test that model switching works by asking the model to identify itself."""
+        prompt = (
+            "What is your exact model name and version? "
+            "Reply with ONLY the model name, nothing else. "
+            "For example: 'Claude 3.5 Haiku' or 'Claude Sonnet 4'"
+        )
+        response = client.complete_sync(prompt, model=model, stream=False)
+
+        # The response should contain the expected model family name
+        assert expected_name.lower() in response.lower(), (
+            f"Expected '{expected_name}' in response when using model='{model}', "
+            f"but got: {response}"
+        )
