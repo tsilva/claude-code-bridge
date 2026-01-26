@@ -3,11 +3,12 @@
 import asyncio
 import os
 import time
+from contextlib import asynccontextmanager
 from uuid import uuid4
 
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import StreamingResponse
-from claude_agent_sdk import query, ClaudeAgentOptions, AssistantMessage, TextBlock
+from claude_agent_sdk import ClaudeAgentOptions, AssistantMessage, ResultMessage, TextBlock
 
 from .models import (
     ChatCompletionRequest,
@@ -20,43 +21,36 @@ from .models import (
     ModelList,
     ModelInfo,
 )
+from .pool import ClientPool
 from .session_logger import SessionLogger
 
-app = FastAPI(title="Claude Code Bridge", version="0.1.0")
+# Pool configuration
+POOL_SIZE = int(os.environ.get("POOL_SIZE", 3))
+pool: ClientPool | None = None
 
-# Limit concurrent Claude SDK calls
-MAX_CONCURRENT = int(os.environ.get("MAX_CONCURRENT", 3))
-semaphore = asyncio.Semaphore(MAX_CONCURRENT)
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Manage application lifespan - initialize and shutdown pool."""
+    global pool
+    options = ClaudeAgentOptions(
+        max_turns=1,
+        setting_sources=["user"],
+        system_prompt={"type": "preset", "preset": "claude_code"},
+    )
+    pool = ClientPool(size=POOL_SIZE, options=options)
+    await pool.initialize()
+    yield
+    await pool.shutdown()
+
+
+app = FastAPI(title="Claude Code Bridge", version="0.1.0", lifespan=lifespan)
 
 # Timeout for Claude SDK calls (in seconds)
 CLAUDE_TIMEOUT = int(os.environ.get("CLAUDE_TIMEOUT", 120))
 
-# Model name mapping
-MODEL_MAP = {
-    "opus": "opus",
-    "sonnet": "sonnet",
-    "haiku": "haiku",
-    "claude-opus": "opus",
-    "claude-sonnet": "sonnet",
-    "claude-haiku": "haiku",
-    "claude-3-opus": "opus",
-    "claude-3-sonnet": "sonnet",
-    "claude-3-haiku": "haiku",
-    "claude-3.5-sonnet": "sonnet",
-    "claude-3.5-haiku": "haiku",
-}
-
+# Available models (for /v1/models endpoint)
 AVAILABLE_MODELS = ["opus", "sonnet", "haiku"]
-
-
-def map_model(model: str | None) -> str | None:
-    """Map incoming model name to Claude Code SDK model, or None for local default."""
-    if not model:
-        return None  # Use local Claude Code settings
-    model_lower = model.lower()
-    if model_lower in MODEL_MAP:
-        return MODEL_MAP[model_lower]
-    return None  # Unknown model → use local settings
 
 
 def format_messages(messages: list[Message]) -> str:
@@ -80,23 +74,23 @@ def format_messages(messages: list[Message]) -> str:
 
 
 async def call_claude_sdk(prompt: str, model: str | None, logger: SessionLogger) -> str:
-    """Call Claude Code SDK and return response text."""
-    mapped_model = map_model(model)
-    options = ClaudeAgentOptions(
-        max_turns=1,
-        setting_sources=["user"],  # Load user settings (including default model)
-        system_prompt={"type": "preset", "preset": "claude_code"},  # Use default Claude Code system prompt
-        **({"model": mapped_model} if mapped_model else {}),
-    )
+    """Call Claude Code SDK using pooled client and return response text.
 
+    Note: Model selection is determined by pool configuration, not per-request.
+    The 'model' parameter is logged but not used for routing.
+    """
     async def _query():
         response_text = ""
-        async for msg in query(prompt=prompt, options=options):
-            if isinstance(msg, AssistantMessage):
-                for block in msg.content:
-                    if isinstance(block, TextBlock):
-                        response_text += block.text
-                        logger.log_chunk(block.text)
+        async with pool.acquire() as client:
+            await client.query(prompt)
+            async for msg in client.receive_response():
+                if isinstance(msg, AssistantMessage):
+                    for block in msg.content:
+                        if isinstance(block, TextBlock):
+                            response_text += block.text
+                            logger.log_chunk(block.text)
+                elif isinstance(msg, ResultMessage):
+                    break
         return response_text
 
     try:
@@ -113,15 +107,11 @@ async def call_claude_sdk(prompt: str, model: str | None, logger: SessionLogger)
 
 
 async def stream_claude_sdk(prompt: str, model: str | None, request_id: str, logger: SessionLogger):
-    """Stream Claude Code SDK response as SSE chunks."""
-    mapped_model = map_model(model)
-    options = ClaudeAgentOptions(
-        max_turns=1,
-        setting_sources=["user"],  # Load user settings (including default model)
-        system_prompt={"type": "preset", "preset": "claude_code"},  # Use default Claude Code system prompt
-        **({"model": mapped_model} if mapped_model else {}),
-    )
+    """Stream Claude Code SDK response as SSE chunks using pooled client.
 
+    Note: Model selection is determined by pool configuration, not per-request.
+    The 'model' parameter is used for response metadata only.
+    """
     created = int(time.time())
     start_time = time.monotonic()
 
@@ -135,22 +125,26 @@ async def stream_claude_sdk(prompt: str, model: str | None, request_id: str, log
     yield f"data: {initial_chunk.model_dump_json()}\n\n"
 
     try:
-        async for msg in query(prompt=prompt, options=options):
-            # Check timeout
-            if time.monotonic() - start_time > CLAUDE_TIMEOUT:
-                logger.log_error(f"Timeout after {CLAUDE_TIMEOUT}s")
-                raise asyncio.TimeoutError(f"Claude SDK timed out after {CLAUDE_TIMEOUT}s")
-            if isinstance(msg, AssistantMessage):
-                for block in msg.content:
-                    if isinstance(block, TextBlock):
-                        logger.log_chunk(block.text)
-                        chunk = ChatCompletionChunk(
-                            id=request_id,
-                            created=created,
-                            model=model,
-                            choices=[StreamChoice(delta=DeltaMessage(content=block.text))],
-                        )
-                        yield f"data: {chunk.model_dump_json()}\n\n"
+        async with pool.acquire() as client:
+            await client.query(prompt)
+            async for msg in client.receive_response():
+                # Check timeout
+                if time.monotonic() - start_time > CLAUDE_TIMEOUT:
+                    logger.log_error(f"Timeout after {CLAUDE_TIMEOUT}s")
+                    raise asyncio.TimeoutError(f"Claude SDK timed out after {CLAUDE_TIMEOUT}s")
+                if isinstance(msg, AssistantMessage):
+                    for block in msg.content:
+                        if isinstance(block, TextBlock):
+                            logger.log_chunk(block.text)
+                            chunk = ChatCompletionChunk(
+                                id=request_id,
+                                created=created,
+                                model=model,
+                                choices=[StreamChoice(delta=DeltaMessage(content=block.text))],
+                            )
+                            yield f"data: {chunk.model_dump_json()}\n\n"
+                elif isinstance(msg, ResultMessage):
+                    break
         logger.log_finish("stop")
     except asyncio.TimeoutError:
         logger.log_error(f"Timeout after {CLAUDE_TIMEOUT}s")
@@ -172,38 +166,41 @@ async def stream_claude_sdk(prompt: str, model: str | None, request_id: str, log
 
 @app.post("/v1/chat/completions")
 async def chat_completions(request: ChatCompletionRequest):
-    """OpenAI-compatible chat completions endpoint."""
+    """OpenAI-compatible chat completions endpoint.
+
+    Note: Concurrency is managed by the client pool (POOL_SIZE env var).
+    Model selection uses user's Claude Code settings, not the request model.
+    """
     request_id = f"chatcmpl-{uuid4().hex[:12]}"
     prompt = format_messages(request.messages)
     logger = SessionLogger(request_id, request.model)
 
-    async with semaphore:
-        if request.stream:
-            async def stream_with_logging():
-                try:
-                    async for chunk in stream_claude_sdk(prompt, request.model, request_id, logger):
-                        yield chunk
-                finally:
-                    logger.write(request.messages, request.stream, request.temperature, request.max_tokens)
+    if request.stream:
+        async def stream_with_logging():
+            try:
+                async for chunk in stream_claude_sdk(prompt, request.model, request_id, logger):
+                    yield chunk
+            finally:
+                logger.write(request.messages, request.stream, request.temperature, request.max_tokens)
 
-            return StreamingResponse(
-                stream_with_logging(),
-                media_type="text/event-stream",
-            )
-
-        response_text = await call_claude_sdk(prompt, request.model, logger)
-        logger.write(request.messages, request.stream, request.temperature, request.max_tokens)
-
-        return ChatCompletionResponse(
-            id=request_id,
-            created=int(time.time()),
-            model=request.model,
-            choices=[
-                Choice(
-                    message=Message(role="assistant", content=response_text),
-                )
-            ],
+        return StreamingResponse(
+            stream_with_logging(),
+            media_type="text/event-stream",
         )
+
+    response_text = await call_claude_sdk(prompt, request.model, logger)
+    logger.write(request.messages, request.stream, request.temperature, request.max_tokens)
+
+    return ChatCompletionResponse(
+        id=request_id,
+        created=int(time.time()),
+        model=request.model,
+        choices=[
+            Choice(
+                message=Message(role="assistant", content=response_text),
+            )
+        ],
+    )
 
 
 @app.get("/v1/models")

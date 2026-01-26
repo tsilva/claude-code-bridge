@@ -15,15 +15,16 @@ claude-code-bridge
 - `GET /v1/models` - List available models
 - `GET /health` - Health check
 
-## Available Models
+## Model Selection
 
-- `opus`, `sonnet`, `haiku` (also accepts `claude-3-sonnet`, `claude-sonnet`, etc.)
+Model selection uses your Claude Code user settings. The `model` parameter in requests is logged but not used for routing. Configure your default model in Claude Code settings.
 
 ## Architecture
 
 ```
 claude_code_bridge/
 ├── server.py         # FastAPI app, endpoints, Claude SDK integration
+├── pool.py           # Client pool for connection reuse
 ├── models.py         # Pydantic models for OpenAI request/response format
 ├── client.py         # CLI client
 └── session_logger.py # Request/response logging
@@ -31,11 +32,18 @@ claude_code_bridge/
 
 ## Key Implementation Details
 
-- **Concurrency**: Uses `asyncio.Semaphore(3)` to limit concurrent Claude SDK calls
+- **Client Pool**: Pre-spawns `ClaudeSDKClient` instances for reduced latency. Uses `/clear` command between requests to reset conversation state while keeping subprocesses warm.
+- **Concurrency**: Pool size controls concurrent requests (default: 3, configurable via `POOL_SIZE` env var)
 - **Streaming**: SSE format matching OpenAI's streaming response
-- **Model mapping**: Flexible model name mapping (e.g., `claude-3-sonnet` → `sonnet`)
+- **Model selection**: Uses user's Claude Code settings (per-request model selection not supported with pooling)
 - **User settings**: Uses `setting_sources=["user"]` to load user's Claude Code settings (including default model)
 - **System prompt**: Uses `system_prompt={"type": "preset", "preset": "claude_code"}` to preserve the default Claude Code system prompt
+
+## Environment Variables
+
+- `POOL_SIZE` - Number of pooled clients (default: 3)
+- `CLAUDE_TIMEOUT` - Request timeout in seconds (default: 120)
+- `PORT` - Server port (default: 8000)
 
 ## Testing
 
