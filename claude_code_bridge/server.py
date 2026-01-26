@@ -30,21 +30,22 @@ from .models import (
     ModelInfo,
 )
 from .model_mapping import resolve_model, AVAILABLE_MODELS, UnsupportedModelError
-from .pool import ModelPoolManager
+from .pool import ClientPool
 from .session_logger import SessionLogger
 
 # Pool configuration
 POOL_SIZE = int(os.environ.get("POOL_SIZE", 3))
-pool_manager: ModelPoolManager | None = None
+pool: ClientPool | None = None
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Manage application lifespan - initialize and shutdown pool manager."""
-    global pool_manager
-    pool_manager = ModelPoolManager(pool_size=POOL_SIZE)
+    """Manage application lifespan - initialize and shutdown pool."""
+    global pool
+    pool = ClientPool(size=POOL_SIZE, default_model="opus")
+    await pool.initialize()
     yield
-    await pool_manager.shutdown()
+    await pool.shutdown()
 
 
 app = FastAPI(title="Claude Code Bridge", version="0.1.0", lifespan=lifespan)
@@ -77,14 +78,14 @@ async def call_claude_sdk(prompt: str, model: str, logger: SessionLogger) -> str
     """Call Claude Code SDK using pooled client and return response text.
 
     Model selection: OpenRouter-style slugs or simple names (opus/sonnet/haiku)
-    are resolved to Claude Code model identifiers and used to select the
-    appropriate model-specific client pool.
+    are resolved to Claude Code model identifiers. Pool replaces clients
+    on-demand when a different model is requested.
     """
     resolved_model = resolve_model(model)
 
     async def _query():
         response_text = ""
-        async with pool_manager.acquire(resolved_model) as client:
+        async with pool.acquire(resolved_model) as client:
             await client.query(prompt)
             async for msg in client.receive_response():
                 if isinstance(msg, AssistantMessage):
@@ -113,8 +114,8 @@ async def stream_claude_sdk(prompt: str, model: str, request_id: str, logger: Se
     """Stream Claude Code SDK response as SSE chunks using pooled client.
 
     Model selection: OpenRouter-style slugs or simple names (opus/sonnet/haiku)
-    are resolved to Claude Code model identifiers and used to select the
-    appropriate model-specific client pool.
+    are resolved to Claude Code model identifiers. Pool replaces clients
+    on-demand when a different model is requested.
     """
     resolved_model = resolve_model(model)
     created = int(time.time())
@@ -130,7 +131,7 @@ async def stream_claude_sdk(prompt: str, model: str, request_id: str, logger: Se
     yield f"data: {initial_chunk.model_dump_json()}\n\n"
 
     try:
-        async with pool_manager.acquire(resolved_model) as client:
+        async with pool.acquire(resolved_model) as client:
             await client.query(prompt)
             async for msg in client.receive_response():
                 # Check timeout

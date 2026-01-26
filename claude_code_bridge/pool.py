@@ -1,4 +1,4 @@
-"""Client pool for reduced latency via connection reuse."""
+"""Client pool for reduced latency via connection reuse with dynamic model replacement."""
 
 import asyncio
 import logging
@@ -10,8 +10,8 @@ from claude_agent_sdk import ClaudeSDKClient, ClaudeAgentOptions, ResultMessage
 logger = logging.getLogger(__name__)
 
 
-def make_options(model: str | None = None) -> ClaudeAgentOptions:
-    """Create ClaudeAgentOptions with optional model override."""
+def make_options(model: str) -> ClaudeAgentOptions:
+    """Create ClaudeAgentOptions with model."""
     return ClaudeAgentOptions(
         max_turns=1,
         setting_sources=["user"],
@@ -21,188 +21,91 @@ def make_options(model: str | None = None) -> ClaudeAgentOptions:
 
 
 class ClientPool:
-    """Pool of persistent ClaudeSDKClient instances for reduced latency.
+    """Pool of persistent ClaudeSDKClient instances with dynamic model replacement.
 
     Maintains a pool of pre-connected clients that can be reused across requests.
-    Uses /clear command between requests to reset conversation state while keeping
-    the subprocess warm.
+    Tracks model per client and replaces clients on-demand when different model is requested.
+    Prefers reusing clients with matching models to avoid replacement overhead.
     """
 
-    def __init__(self, size: int = 3, model: str | None = None):
+    def __init__(self, size: int = 3, default_model: str = "opus"):
         """Initialize client pool.
 
         Args:
             size: Number of clients to maintain in the pool.
-            model: Model name for all clients in this pool (opus, sonnet, haiku).
+            default_model: Model to use for initial pool population.
         """
         self.size = size
-        self.model = model
-        self._available: asyncio.Queue[ClaudeSDKClient] = asyncio.Queue()
-        self._all_clients: list[ClaudeSDKClient] = []
+        self.default_model = default_model
+        self._client_models: dict[ClaudeSDKClient, str] = {}  # client -> model
+        self._available: list[ClaudeSDKClient] = []  # available clients
+        self._lock = asyncio.Lock()
+        self._semaphore = asyncio.Semaphore(size)  # limits concurrent usage
         self._initialized = False
-        self._in_use = 0  # Track clients currently in use
+        self._in_use = 0
 
     async def initialize(self) -> None:
-        """Pre-spawn all clients and connect them."""
+        """Pre-spawn all clients with default model."""
         if self._initialized:
             return
 
-        model_label = self.model or "default"
-        logger.info(f"[pool:{model_label}] Initializing pool with {self.size} clients...")
+        logger.info(f"[pool] Initializing with {self.size} {self.default_model} clients...")
         for i in range(self.size):
-            client = ClaudeSDKClient(make_options(self.model))
+            client = ClaudeSDKClient(make_options(self.default_model))
             await client.connect()
-            self._all_clients.append(client)
-            await self._available.put(client)
-            logger.info(f"[pool:{model_label}] Client {i + 1}/{self.size} connected")
+            self._client_models[client] = self.default_model
+            self._available.append(client)
+            logger.info(f"[pool] Client {i + 1}/{self.size} connected ({self.default_model})")
 
         self._initialized = True
-        logger.info(f"[pool:{model_label}] Pool ready: {self.size} clients available")
+        self._log_status("Initialized")
 
     async def _clear_client_state(self, client: ClaudeSDKClient) -> None:
         """Clear conversation state using /clear command."""
         try:
             await client.query("/clear")
-            # Drain the clear acknowledgment
             async for msg in client.receive_response():
                 if isinstance(msg, ResultMessage):
                     break
         except Exception:
-            # If /clear fails, the client might be in a bad state
-            # We'll handle this in acquire by replacing the client
             raise
 
-    async def _replace_client(self, old_client: ClaudeSDKClient) -> ClaudeSDKClient:
-        """Replace an unhealthy client with a fresh one."""
+    async def _create_client(self, model: str) -> ClaudeSDKClient:
+        """Create and connect a new client with specified model."""
+        client = ClaudeSDKClient(make_options(model))
+        await client.connect()
+        self._client_models[client] = model
+        return client
+
+    async def _disconnect_client(self, client: ClaudeSDKClient) -> None:
+        """Disconnect client and remove from tracking."""
         try:
-            await old_client.disconnect()
+            await client.disconnect()
         except Exception:
-            pass  # Ignore disconnect errors
-
-        if old_client in self._all_clients:
-            self._all_clients.remove(old_client)
-
-        new_client = ClaudeSDKClient(make_options(self.model))
-        await new_client.connect()
-        self._all_clients.append(new_client)
-        return new_client
+            pass
+        if client in self._client_models:
+            del self._client_models[client]
 
     def _log_status(self, action: str) -> None:
-        """Log current pool status."""
-        model_label = self.model or "default"
-        available = self._available.qsize()
-        total = len(self._all_clients)
-        logger.info(f"[pool:{model_label}] {action} | in_use={self._in_use} available={available} total={total}")
+        """Log current pool status with model breakdown."""
+        model_counts: dict[str, int] = {}
+        for model in self._client_models.values():
+            model_counts[model] = model_counts.get(model, 0) + 1
 
-    @asynccontextmanager
-    async def acquire(self) -> AsyncIterator[ClaudeSDKClient]:
-        """Get a client from the pool, clear its state, yield it, return to pool.
+        available_models = [self._client_models[c] for c in self._available]
+        available_str = f"[{', '.join(available_models)}]" if available_models else "[]"
 
-        Yields:
-            A ClaudeSDKClient ready for use with clean conversation state.
-        """
-        # Check if we'll need to wait
-        model_label = self.model or "default"
-        if self._available.empty():
-            logger.warning(f"[pool:{model_label}] All {len(self._all_clients)} clients in use, request will wait...")
-
-        client = await self._available.get()
-        self._in_use += 1
-        self._log_status("Acquired")
-        client_to_return: ClaudeSDKClient | None = client
-
-        try:
-            # Clear conversation state before use
-            await self._clear_client_state(client)
-            yield client
-        except Exception as e:
-            # If something went wrong, replace the client
-            model_label = self.model or "default"
-            logger.warning(f"[pool:{model_label}] Client error, replacing: {e}")
-            try:
-                client_to_return = await self._replace_client(client)
-                logger.info(f"[pool:{model_label}] Client replaced successfully")
-            except Exception:
-                # If replacement also fails, try creating a fresh client
-                logger.warning(f"[pool:{model_label}] Replacement failed, creating fresh client...")
-                try:
-                    new_client = ClaudeSDKClient(make_options(self.model))
-                    await new_client.connect()
-                    self._all_clients.append(new_client)
-                    client_to_return = new_client
-                    logger.info(f"[pool:{model_label}] Fresh client created")
-                except Exception:
-                    # Can't create a new client - pool capacity reduced
-                    logger.error(f"[pool:{model_label}] Failed to create client, pool capacity reduced")
-                    client_to_return = None
-            raise e
-        finally:
-            self._in_use -= 1
-            if client_to_return is not None:
-                await self._available.put(client_to_return)
-            self._log_status("Released")
-
-    async def shutdown(self) -> None:
-        """Disconnect all clients and clean up."""
-        model_label = self.model or "default"
-        logger.info(f"[pool:{model_label}] Shutting down {len(self._all_clients)} clients...")
-        for client in self._all_clients:
-            try:
-                await client.disconnect()
-            except Exception:
-                pass  # Ignore disconnect errors
-
-        self._all_clients.clear()
-        self._initialized = False
-        self._in_use = 0
-
-        # Clear the queue
-        while not self._available.empty():
-            try:
-                self._available.get_nowait()
-            except asyncio.QueueEmpty:
-                break
-
-        logger.info(f"[pool:{model_label}] Shutdown complete")
-
-
-class ModelPoolManager:
-    """Manages multiple model-specific client pools.
-
-    Creates and manages separate pools for each model type, enabling
-    model selection without losing the performance benefits of pooling.
-    """
-
-    def __init__(self, pool_size: int = 3):
-        """Initialize the pool manager.
-
-        Args:
-            pool_size: Number of clients per model pool.
-        """
-        self.pool_size = pool_size
-        self._pools: dict[str, ClientPool] = {}
-        self._lock = asyncio.Lock()
-
-    async def get_pool(self, model: str) -> ClientPool:
-        """Get or create a pool for the specified model.
-
-        Args:
-            model: Model name (opus, sonnet, haiku).
-
-        Returns:
-            Initialized ClientPool for the model.
-        """
-        async with self._lock:
-            if model not in self._pools:
-                logger.info(f"[manager] Creating pool for model: {model}")
-                pool = ClientPool(size=self.pool_size, model=model)
-                await pool.initialize()
-                self._pools[model] = pool
-            return self._pools[model]
+        logger.info(
+            f"[pool] {action} | in_use={self._in_use} available={len(self._available)} "
+            f"models={available_str}"
+        )
 
     @asynccontextmanager
     async def acquire(self, model: str) -> AsyncIterator[ClaudeSDKClient]:
-        """Acquire a client for the specified model.
+        """Get a client for the specified model, replacing if necessary.
+
+        If a client with the matching model is available, use it.
+        Otherwise, replace an available client with a new one for the requested model.
 
         Args:
             model: Model name (opus, sonnet, haiku).
@@ -210,14 +113,69 @@ class ModelPoolManager:
         Yields:
             A ClaudeSDKClient configured for the specified model.
         """
-        pool = await self.get_pool(model)
-        async with pool.acquire() as client:
+        await self._semaphore.acquire()  # Wait if all clients in use
+
+        client: ClaudeSDKClient | None = None
+        replaced = False
+
+        try:
+            async with self._lock:
+                # Find client with matching model
+                matching = [c for c in self._available if self._client_models[c] == model]
+                if matching:
+                    client = matching[0]
+                    self._available.remove(client)
+                    logger.info(f"[pool] Using existing {model} client")
+                elif self._available:
+                    # Replace a client with different model
+                    old_client = self._available.pop(0)
+                    old_model = self._client_models[old_client]
+                    logger.info(f"[pool] Replacing {old_model} client with {model}")
+                    await self._disconnect_client(old_client)
+                    client = await self._create_client(model)
+                    replaced = True
+                else:
+                    # No available clients (shouldn't happen with semaphore)
+                    logger.warning("[pool] No available clients, creating new one")
+                    client = await self._create_client(model)
+
+                self._in_use += 1
+                self._log_status("Acquired" + (" (replaced)" if replaced else ""))
+
+            # Clear conversation state before use
+            await self._clear_client_state(client)
             yield client
 
+        except Exception as e:
+            # If something went wrong, try to replace the client
+            logger.warning(f"[pool] Client error: {e}")
+            if client is not None:
+                async with self._lock:
+                    try:
+                        await self._disconnect_client(client)
+                        client = await self._create_client(model)
+                        logger.info(f"[pool] Client replaced after error")
+                    except Exception:
+                        logger.error("[pool] Failed to replace client after error")
+                        client = None
+            raise
+        finally:
+            async with self._lock:
+                self._in_use -= 1
+                if client is not None:
+                    self._available.append(client)
+                self._log_status("Released")
+            self._semaphore.release()
+
     async def shutdown(self) -> None:
-        """Shutdown all pools."""
-        logger.info(f"[manager] Shutting down {len(self._pools)} pools...")
-        for model, pool in self._pools.items():
-            await pool.shutdown()
-        self._pools.clear()
-        logger.info("[manager] All pools shut down")
+        """Disconnect all clients and clean up."""
+        logger.info(f"[pool] Shutting down {len(self._client_models)} clients...")
+
+        for client in list(self._client_models.keys()):
+            await self._disconnect_client(client)
+
+        self._available.clear()
+        self._initialized = False
+        self._in_use = 0
+
+        logger.info("[pool] Shutdown complete")

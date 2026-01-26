@@ -39,7 +39,7 @@ Unsupported model IDs return HTTP 400 with an error message listing valid option
 ```
 claude_code_bridge/
 ├── server.py         # FastAPI app, endpoints, Claude SDK integration
-├── pool.py           # Client pool for connection reuse
+├── pool.py           # Dynamic client pool with model replacement
 ├── models.py         # Pydantic models for OpenAI request/response format
 ├── model_mapping.py  # OpenRouter slug to Claude Code model resolution
 ├── client.py         # CLI client
@@ -48,11 +48,11 @@ claude_code_bridge/
 
 ## Key Implementation Details
 
-- **Client Pool**: Pre-spawns `ClaudeSDKClient` instances for reduced latency. Uses `/clear` command between requests to reset conversation state while keeping subprocesses warm.
+- **Client Pool**: Single dynamic pool that tracks model per client. Initializes with opus clients by default. Replaces clients on-demand when a different model is requested. Prefers reusing clients with matching models. Uses `/clear` command between requests to reset conversation state.
 - **Concurrency**: Pool size controls concurrent requests (default: 3, configurable via `POOL_SIZE` env var)
 - **Streaming**: SSE format matching OpenAI's streaming response
-- **Model selection**: Resolves OpenRouter slugs to Claude Code models via `/model` command. Model parameter is required.
-- **User settings**: Uses `setting_sources=["user"]` to load user's Claude Code settings (including default model)
+- **Model selection**: Resolves OpenRouter slugs to Claude Code models. Model parameter is required.
+- **User settings**: Uses `setting_sources=["user"]` to load user's Claude Code settings
 - **System prompt**: Uses `system_prompt={"type": "preset", "preset": "claude_code"}` to preserve the default Claude Code system prompt
 
 ## Environment Variables
