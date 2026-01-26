@@ -2,14 +2,25 @@
 
 import argparse
 import asyncio
+import os
 import sys
 import json
 
 import httpx
 
 
-DEFAULT_URL = "http://localhost:8000"
-DEFAULT_MODEL = None  # Use local Claude Code settings
+# Configuration via environment variables (OpenRouter-compatible)
+DEFAULT_BASE_URL = os.environ.get("OPENROUTER_BASE_URL", "http://localhost:8000")
+DEFAULT_API_KEY = os.environ.get("OPENROUTER_API_KEY")
+DEFAULT_MODEL = os.environ.get("OPENROUTER_MODEL")
+
+
+def get_auth_headers(api_key: str | None) -> dict[str, str]:
+    """Build headers dict, including Authorization if API key provided."""
+    headers = {"Content-Type": "application/json"}
+    if api_key:
+        headers["Authorization"] = f"Bearer {api_key}"
+    return headers
 
 
 async def stream_response_async(
@@ -86,12 +97,16 @@ async def run_parallel(
     prompt: str,
     count: int,
     stream: bool,
+    api_key: str | None = None,
 ) -> None:
     """Run multiple requests in parallel with staggered starts."""
     show_index = count > 1
     stagger_delay = 0.1  # 100ms between request launches
 
-    async with httpx.AsyncClient(timeout=300.0) as client:
+    async with httpx.AsyncClient(
+        timeout=300.0,
+        headers=get_auth_headers(api_key),
+    ) as client:
         if stream:
             tasks = [
                 asyncio.create_task(
@@ -124,12 +139,23 @@ async def run_parallel(
 def main() -> None:
     """CLI entry point."""
     parser = argparse.ArgumentParser(
-        description="Send a prompt to Claude Code Bridge and get a response.",
+        description="Send a prompt to an OpenAI-compatible API (local bridge or OpenRouter).",
         epilog="Examples:\n"
+               "  # Local bridge (default)\n"
                "  claude-code-client 'What is Python?'\n"
                "  echo 'Hello' | claude-code-client\n"
                "  claude-code-client --model opus 'Explain decorators'\n"
-               "  claude-code-client -n 3 'Hello'  # Run 3 parallel requests",
+               "  claude-code-client -n 3 'Hello'  # Run 3 parallel requests\n"
+               "\n"
+               "  # OpenRouter (via env vars)\n"
+               "  export OPENROUTER_BASE_URL=https://openrouter.ai/api/v1\n"
+               "  export OPENROUTER_API_KEY=sk-or-v1-xxxxx\n"
+               "  export OPENROUTER_MODEL=anthropic/claude-sonnet-4\n"
+               "  claude-code-client 'Hello'\n"
+               "\n"
+               "  # OpenRouter (via CLI args)\n"
+               "  claude-code-client -u https://openrouter.ai/api/v1 \\\n"
+               "      -k sk-or-v1-xxxxx -m anthropic/claude-sonnet-4 'Hello'",
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument(
@@ -140,12 +166,17 @@ def main() -> None:
     parser.add_argument(
         "--model", "-m",
         default=DEFAULT_MODEL,
-        help="Model to use: opus, sonnet, haiku (default: local Claude Code settings)",
+        help="Model to use (default: $OPENROUTER_MODEL or local Claude Code settings)",
     )
     parser.add_argument(
         "--url", "-u",
-        default=DEFAULT_URL,
-        help=f"Bridge URL (default: {DEFAULT_URL})",
+        default=DEFAULT_BASE_URL,
+        help="API base URL (default: $OPENROUTER_BASE_URL or http://localhost:8000)",
+    )
+    parser.add_argument(
+        "--api-key", "-k",
+        default=DEFAULT_API_KEY,
+        help="API key for authentication (default: $OPENROUTER_API_KEY)",
     )
     parser.add_argument(
         "--no-stream",
@@ -182,13 +213,18 @@ def main() -> None:
             prompt=prompt,
             count=args.parallel,
             stream=not args.no_stream,
+            api_key=args.api_key,
         ))
     except httpx.ConnectError:
-        print(f"Error: Could not connect to bridge at {args.url}", file=sys.stderr)
-        print("Make sure the bridge is running: claude-code-bridge", file=sys.stderr)
+        print(f"Error: Could not connect to {args.url}", file=sys.stderr)
+        print("Make sure the server is running.", file=sys.stderr)
         sys.exit(1)
     except httpx.HTTPStatusError as e:
-        print(f"Error: HTTP {e.response.status_code}", file=sys.stderr)
+        if e.response.status_code in (401, 403):
+            print("Error: Authentication failed", file=sys.stderr)
+            print("Check your API key (--api-key or $OPENROUTER_API_KEY)", file=sys.stderr)
+        else:
+            print(f"Error: HTTP {e.response.status_code}", file=sys.stderr)
         sys.exit(1)
 
 
