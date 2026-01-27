@@ -560,12 +560,22 @@ async def health():
     return {"status": "ok"}
 
 
+def get_version() -> str:
+    """Get version string with git hash."""
+    try:
+        from ._build_info import GIT_HASH
+    except ImportError:
+        GIT_HASH = "dev"
+    return f"0.1.0 ({GIT_HASH})"
+
+
 def main():
     """Entry point for CLI."""
     import argparse
     import uvicorn
 
     parser = argparse.ArgumentParser(description="Claude Code Bridge - OpenAI-compatible API for Claude")
+    parser.add_argument("-v", "--version", action="version", version=f"claude-code-bridge {get_version()}")
     parser.add_argument("-p", "--pool-size", type=int, default=1, help="Number of pooled clients (default: 1)")
     parser.add_argument("--port", type=int, default=int(os.environ.get("PORT", 8000)), help="Server port (default: 8000)")
     args = parser.parse_args()

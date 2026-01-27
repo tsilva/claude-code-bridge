@@ -1,6 +1,7 @@
 __pycache__/
 *.py[cod]
 *$py.class
+_build_info.py
 .env
 .venv/
 venv/

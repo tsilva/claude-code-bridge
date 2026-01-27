@@ -33,6 +33,17 @@ uv pip install -e .
 
 # Run the server
 claude-code-bridge
+
+# Verify installed version
+claude-code-bridge --version
+```
+
+### Local Development
+
+When reinstalling from source, use `--no-cache` to ensure you get the latest code:
+
+```bash
+uv tool install . --force --no-cache
 ```
 
 Server starts at `http://localhost:8000`
