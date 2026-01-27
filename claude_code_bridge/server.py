@@ -39,7 +39,7 @@ from .session_logger import SessionLogger
 from .image_utils import has_multimodal_content, openai_content_to_claude
 
 # Pool configuration
-POOL_SIZE = int(os.environ.get("POOL_SIZE", 3))
+POOL_SIZE = int(os.environ.get("POOL_SIZE", 1))
 pool: ClientPool | None = None
 
 
@@ -562,8 +562,18 @@ async def health():
 
 def main():
     """Entry point for CLI."""
+    import argparse
     import uvicorn
-    uvicorn.run(app, host="127.0.0.1", port=int(os.environ.get("PORT", 8000)))
+
+    parser = argparse.ArgumentParser(description="Claude Code Bridge - OpenAI-compatible API for Claude")
+    parser.add_argument("-p", "--pool-size", type=int, default=1, help="Number of pooled clients (default: 1)")
+    parser.add_argument("--port", type=int, default=int(os.environ.get("PORT", 8000)), help="Server port (default: 8000)")
+    args = parser.parse_args()
+
+    # Set pool size for lifespan initialization
+    os.environ["POOL_SIZE"] = str(args.pool_size)
+
+    uvicorn.run(app, host="127.0.0.1", port=args.port)
 
 
 if __name__ == "__main__":
