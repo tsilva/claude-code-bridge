@@ -15,10 +15,8 @@ from claude_code_bridge.client import BridgeClient
 
 @pytest.fixture(scope="module")
 def client():
-    """Create BridgeClient and skip if server not running."""
+    """Create BridgeClient for testing."""
     c = BridgeClient()
-    if not c.health_check():
-        pytest.skip(f"Server not running at {c.base_url}")
     yield c
     c.close_sync()
 

@@ -15,11 +15,13 @@ from openai import AsyncOpenAI, OpenAI
 import openai
 from dotenv import load_dotenv
 
+from claude_code_bridge.url_utils import resolve_bridge_url
+
 # Load .env file from current directory or parents
 load_dotenv()
 
 # Configuration via environment variables
-DEFAULT_BASE_URL = os.environ.get("BRIDGE_URL", "http://localhost:8000")
+DEFAULT_BASE_URL = resolve_bridge_url()
 DEFAULT_API_KEY = os.environ.get("OPENROUTER_API_KEY")
 DEFAULT_MODEL = os.environ.get("OPENROUTER_MODEL")
 

@@ -191,13 +191,32 @@ class TestImageUtils:
         assert "Look at this:" in result
         assert "[image: base64 data]" in result
 
+    def test_image_produces_image_block_not_document(self):
+        """Regression test: images must produce 'image' blocks, not 'document' blocks."""
+        # Test various image types
+        image_types = [
+            ("image/png", "data:image/png;base64,iVBORw0KGgo="),
+            ("image/jpeg", "data:image/jpeg;base64,/9j/4AAQ"),
+            ("image/gif", "data:image/gif;base64,R0lGODlh"),
+            ("image/webp", "data:image/webp;base64,UklGR"),
+        ]
+
+        for media_type, url in image_types:
+            image_content = ImageUrlContent(
+                type="image_url",
+                image_url=ImageUrl(url=url)
+            )
+            result = openai_image_to_claude(image_content)
+
+            assert result["type"] == "image", f"{media_type} should produce 'image' block"
+            assert result["source"]["type"] == "base64"
+            assert result["source"]["media_type"] == media_type
+
 
 @pytest.fixture(scope="module")
 def client():
-    """Create BridgeClient and skip if server not running."""
+    """Create BridgeClient for testing."""
     c = BridgeClient()
-    if not c.health_check():
-        pytest.skip(f"Server not running at {c.base_url}")
     yield c
     c.close_sync()
 

@@ -9,12 +9,16 @@ dependencies = [
     "claude-agent-sdk>=0.1.0",
     "python-dotenv>=1.0.0",
     "openai>=1.0.0",
+    "fpdf>=1.7.2",
+    "pytest>=9.0.2",
+    "pytest-asyncio>=0.23.0",
 ]
 
 [project.optional-dependencies]
 test = [
     "pytest>=8.0.0",
     "pytest-asyncio>=0.23.0",
+    "fpdf2>=2.7.0",
 ]
 
 [project.scripts]

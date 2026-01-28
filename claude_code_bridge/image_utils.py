@@ -35,18 +35,32 @@ def is_data_url(url: str) -> bool:
 
 
 def openai_image_to_claude(image_content: ImageUrlContent) -> dict[str, Any]:
-    """Convert OpenAI image_url content block to Claude image format.
+    """Convert OpenAI image_url content block to Claude image/document format.
 
     OpenAI format:
         {"type": "image_url", "image_url": {"url": "data:image/png;base64,..."}}
+        {"type": "image_url", "image_url": {"url": "data:application/pdf;base64,..."}}
 
-    Claude format:
+    Claude format (images):
         {"type": "image", "source": {"type": "base64", "media_type": "image/png", "data": "..."}}
+
+    Claude format (PDFs):
+        {"type": "document", "source": {"type": "base64", "media_type": "application/pdf", "data": "..."}}
     """
     url = image_content.image_url.url
 
     if is_data_url(url):
         media_type, data = parse_data_url(url)
+        # PDFs use document type, images use image type
+        if media_type == "application/pdf":
+            return {
+                "type": "document",
+                "source": {
+                    "type": "base64",
+                    "media_type": media_type,
+                    "data": data,
+                }
+            }
         return {
             "type": "image",
             "source": {
@@ -109,7 +123,7 @@ def has_multimodal_content(messages: list) -> bool:
 def extract_text_from_content(content: str | list[ContentPart]) -> str:
     """Extract text from message content for logging.
 
-    For multimodal content, replaces images with placeholder text.
+    For multimodal content, replaces images/documents with placeholder text.
     """
     if isinstance(content, str):
         return content
@@ -121,7 +135,11 @@ def extract_text_from_content(content: str | list[ContentPart]) -> str:
         elif isinstance(part, ImageUrlContent) or (hasattr(part, "type") and part.type == "image_url"):
             url = part.image_url.url if hasattr(part, "image_url") else part.image_url["url"]
             if is_data_url(url):
-                parts.append("[image: base64 data]")
+                media_type, _ = parse_data_url(url)
+                if media_type == "application/pdf":
+                    parts.append("[document: PDF base64 data]")
+                else:
+                    parts.append("[image: base64 data]")
             else:
                 parts.append(f"[image: {url}]")
 
