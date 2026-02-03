@@ -1,6 +1,6 @@
 [project]
 name = "claudebridge"
-version = "0.1.0"
+version = "0.1.1"
 description = "Bridge OpenAI tools to Claude Code SDK"
 requires-python = ">=3.12"
 dependencies = [
