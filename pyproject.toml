@@ -1,6 +1,6 @@
 [project]
 name = "claudebridge"
-version = "0.1.1"
+version = "0.1.2"
 description = "Bridge OpenAI tools to Claude Code SDK"
 requires-python = ">=3.12"
 dependencies = [
@@ -36,3 +36,7 @@ path = "hatch_build.py"
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
+markers = [
+    "unit: mark test as unit test (no server required)",
+    "integration: mark test as integration test (requires running server)",
+]

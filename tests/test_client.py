@@ -21,6 +21,7 @@ def client():
     c.close_sync()
 
 
+@pytest.mark.integration
 class TestHealthCheck:
     """Tests for the /health endpoint."""
 
@@ -29,6 +30,7 @@ class TestHealthCheck:
         assert client.health_check()
 
 
+@pytest.mark.integration
 class TestListModels:
     """Tests for the /api/v1/models endpoint."""
 
@@ -42,6 +44,7 @@ class TestListModels:
         assert any("haiku" in m for m in models)
 
 
+@pytest.mark.integration
 class TestChatCompletion:
     """Tests for the /api/v1/chat/completions endpoint."""
 
@@ -97,6 +100,7 @@ class TestChatCompletion:
         assert len(response) > 0
 
 
+@pytest.mark.integration
 class TestModelSelection:
     """Tests for model selection."""
 

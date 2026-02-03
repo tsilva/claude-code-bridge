@@ -43,12 +43,20 @@ def pytest_configure(config):
     config.addinivalue_line(
         "markers", "unit: mark test as unit test (no server required)"
     )
+    config.addinivalue_line(
+        "markers", "integration: mark test as integration test (requires running server)"
+    )
     # Generate PDF fixture if needed
     _generate_pdf_fixture()
 
 
 def pytest_collection_modifyitems(config, items):
-    """Check server availability unless all tests are unit tests."""
+    """Check server availability unless running unit tests only."""
+    # Check if running only unit tests via marker expression
+    markexpr = config.option.markexpr
+    if markexpr and "unit" in markexpr:
+        return  # Skip server check when running unit tests
+
     # Check if all collected tests are unit tests
     all_unit = all(item.get_closest_marker("unit") for item in items)
     if all_unit:
