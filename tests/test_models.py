@@ -11,7 +11,7 @@ import json
 
 import pytest
 
-from claude_code_bridge.models import (
+from claudebridge.models import (
     # Request models
     ChatCompletionRequest,
     Message,

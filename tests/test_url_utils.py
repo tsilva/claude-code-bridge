@@ -6,10 +6,10 @@ from unittest.mock import patch
 
 import pytest
 
-from claude_code_bridge.url_utils import resolve_bridge_url
+from claudebridge.url_utils import resolve_bridge_url
 
 # Patch target for socket.gethostbyname in the url_utils module
-SOCKET_PATCH = "claude_code_bridge.url_utils.socket.gethostbyname"
+SOCKET_PATCH = "claudebridge.url_utils.socket.gethostbyname"
 
 
 @pytest.mark.unit

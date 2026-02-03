@@ -1,11 +1,11 @@
-"""Pytest configuration for claude-code-bridge tests."""
+"""Pytest configuration for claudebridge tests."""
 
 from pathlib import Path
 
 import pytest
 import httpx
 
-from claude_code_bridge.url_utils import resolve_bridge_url
+from claudebridge.url_utils import resolve_bridge_url
 
 SERVER_URL = resolve_bridge_url()
 FIXTURES_DIR = Path(__file__).parent / "fixtures"
@@ -59,12 +59,12 @@ def pytest_collection_modifyitems(config, items):
         if response.status_code != 200 or response.json().get("status") != "ok":
             pytest.exit(
                 f"\n\nServer not responding correctly at {SERVER_URL}\n"
-                f"Start the server with: claude-code-bridge\n",
+                f"Start the server with: claudebridge\n",
                 returncode=1
             )
     except (httpx.ConnectError, httpx.TimeoutException):
         pytest.exit(
             f"\n\nServer not available at {SERVER_URL}\n"
-            f"Start the server with: claude-code-bridge\n",
+            f"Start the server with: claudebridge\n",
             returncode=1
         )

@@ -14,7 +14,7 @@ import pytest
 
 from claude_agent_sdk import ResultMessage
 
-from claude_code_bridge.pool import ClientPool, make_options
+from claudebridge.pool import ClientPool, make_options
 
 
 def _make_mock_client():
@@ -106,7 +106,7 @@ class TestClientPoolInitialize:
         """Initialize creates correct number of clients."""
         pool = ClientPool(size=2, default_model="opus")
 
-        with patch("claude_code_bridge.pool.ClaudeSDKClient") as MockClient:
+        with patch("claudebridge.pool.ClaudeSDKClient") as MockClient:
             mock_instance = AsyncMock()
             MockClient.return_value = mock_instance
 
@@ -121,7 +121,7 @@ class TestClientPoolInitialize:
         """Initialize sets model for all clients."""
         pool = ClientPool(size=2, default_model="sonnet")
 
-        with patch("claude_code_bridge.pool.ClaudeSDKClient") as MockClient:
+        with patch("claudebridge.pool.ClaudeSDKClient") as MockClient:
             mock_instance = AsyncMock()
             MockClient.return_value = mock_instance
 
@@ -134,7 +134,7 @@ class TestClientPoolInitialize:
         """Double initialization is a no-op."""
         pool = ClientPool(size=2)
 
-        with patch("claude_code_bridge.pool.ClaudeSDKClient") as MockClient:
+        with patch("claudebridge.pool.ClaudeSDKClient") as MockClient:
             mock_instance = AsyncMock()
             MockClient.return_value = mock_instance
 
@@ -154,7 +154,7 @@ class TestClientPoolAcquire:
         """Acquire returns a client for matching model."""
         pool = ClientPool(size=1, default_model="opus")
 
-        with patch("claude_code_bridge.pool.ClaudeSDKClient") as MockClient:
+        with patch("claudebridge.pool.ClaudeSDKClient") as MockClient:
             mock_client = _make_mock_client()
             MockClient.return_value = mock_client
 
@@ -167,7 +167,7 @@ class TestClientPoolAcquire:
         """Acquire with different model replaces client."""
         pool = ClientPool(size=1, default_model="opus")
 
-        with patch("claude_code_bridge.pool.ClaudeSDKClient") as MockClient:
+        with patch("claudebridge.pool.ClaudeSDKClient") as MockClient:
             mock_opus = _make_mock_client()
             mock_sonnet = _make_mock_client()
             MockClient.side_effect = [mock_opus, mock_sonnet]
@@ -182,7 +182,7 @@ class TestClientPoolAcquire:
         """Client is returned to pool after use."""
         pool = ClientPool(size=1, default_model="opus")
 
-        with patch("claude_code_bridge.pool.ClaudeSDKClient") as MockClient:
+        with patch("claudebridge.pool.ClaudeSDKClient") as MockClient:
             mock_client = _make_mock_client()
             MockClient.return_value = mock_client
 
@@ -199,7 +199,7 @@ class TestClientPoolAcquire:
         """Concurrent acquisitions limited by pool size."""
         pool = ClientPool(size=2, default_model="opus")
 
-        with patch("claude_code_bridge.pool.ClaudeSDKClient") as MockClient:
+        with patch("claudebridge.pool.ClaudeSDKClient") as MockClient:
             clients = [_make_mock_client() for _ in range(2)]
             MockClient.side_effect = clients
 
@@ -238,7 +238,7 @@ class TestClientPoolShutdown:
         """Shutdown disconnects all clients."""
         pool = ClientPool(size=2, default_model="opus")
 
-        with patch("claude_code_bridge.pool.ClaudeSDKClient") as MockClient:
+        with patch("claudebridge.pool.ClaudeSDKClient") as MockClient:
             mock_clients = [_make_mock_client() for _ in range(2)]
             MockClient.side_effect = mock_clients
 
@@ -256,7 +256,7 @@ class TestClientPoolShutdown:
         """Shutdown clears all pool state."""
         pool = ClientPool(size=1, default_model="opus")
 
-        with patch("claude_code_bridge.pool.ClaudeSDKClient") as MockClient:
+        with patch("claudebridge.pool.ClaudeSDKClient") as MockClient:
             mock_client = _make_mock_client()
             MockClient.return_value = mock_client
 
@@ -280,7 +280,7 @@ class TestClientPoolErrorHandling:
         """Pool handles error during /clear command."""
         pool = ClientPool(size=1, default_model="opus")
 
-        with patch("claude_code_bridge.pool.ClaudeSDKClient") as MockClient:
+        with patch("claudebridge.pool.ClaudeSDKClient") as MockClient:
             mock_client = AsyncMock()
             mock_client.query.side_effect = Exception("Connection lost")
             # Need replacement client
@@ -299,7 +299,7 @@ class TestClientPoolErrorHandling:
         """Client is returned to pool on successful use."""
         pool = ClientPool(size=1, default_model="opus")
 
-        with patch("claude_code_bridge.pool.ClaudeSDKClient") as MockClient:
+        with patch("claudebridge.pool.ClaudeSDKClient") as MockClient:
             mock_client = _make_mock_client()
             MockClient.return_value = mock_client
 
@@ -320,7 +320,7 @@ class TestClientPoolModelTracking:
         """Each client tracks its model."""
         pool = ClientPool(size=2, default_model="opus")
 
-        with patch("claude_code_bridge.pool.ClaudeSDKClient") as MockClient:
+        with patch("claudebridge.pool.ClaudeSDKClient") as MockClient:
             mock_clients = [_make_mock_client() for _ in range(2)]
             MockClient.side_effect = mock_clients
 
@@ -333,7 +333,7 @@ class TestClientPoolModelTracking:
         """Model is updated when client is replaced."""
         pool = ClientPool(size=1, default_model="opus")
 
-        with patch("claude_code_bridge.pool.ClaudeSDKClient") as MockClient:
+        with patch("claudebridge.pool.ClaudeSDKClient") as MockClient:
             mock_opus = _make_mock_client()
             mock_sonnet = _make_mock_client()
             MockClient.side_effect = [mock_opus, mock_sonnet]

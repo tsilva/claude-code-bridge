@@ -13,7 +13,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from fastapi.testclient import TestClient
 
-from claude_code_bridge.models import (
+from claudebridge.models import (
     Message,
     TextContent,
     ImageUrlContent,
@@ -21,7 +21,7 @@ from claude_code_bridge.models import (
     Tool,
     FunctionDefinition,
 )
-from claude_code_bridge.server import (
+from claudebridge.server import (
     format_messages,
     format_multimodal_messages,
     extract_text_content,
@@ -280,7 +280,7 @@ class TestClaudeResponse:
 
     def test_response_with_tool_calls(self):
         """Response with tool calls."""
-        from claude_code_bridge.models import ToolCall, FunctionCall
+        from claudebridge.models import ToolCall, FunctionCall
 
         resp = ClaudeResponse()
         resp.tool_calls = [
@@ -389,7 +389,7 @@ class TestFormatMultimodalMessages:
 def test_client():
     """Create test client with mocked pool."""
     # We need to mock the pool to avoid connecting to real SDK
-    with patch("claude_code_bridge.server.pool") as mock_pool:
+    with patch("claudebridge.server.pool") as mock_pool:
         # Create a mock that can be used with async context manager
         mock_client = AsyncMock()
         mock_pool.acquire.return_value.__aenter__ = AsyncMock(return_value=mock_client)

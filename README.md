@@ -1,7 +1,7 @@
 <div align="center">
-  <img src="logo.png" alt="claude-code-bridge" width="512"/>
+  <img src="logo.png" alt="claudebridge" width="512"/>
 
-  # claude-code-bridge
+  # claudebridge
 
   [![Python](https://img.shields.io/badge/Python-3.10+-blue.svg)](https://python.org)
   [![FastAPI](https://img.shields.io/badge/FastAPI-0.115+-009688.svg)](https://fastapi.tiangolo.com)
@@ -24,18 +24,18 @@
 
 ```bash
 # Install globally
-uv tool install git+https://github.com/tsilva/claude-code-bridge
+uv tool install git+https://github.com/tsilva/claudebridge
 
 # Or install from source
-git clone https://github.com/tsilva/claude-code-bridge
-cd claude-code-bridge
+git clone https://github.com/tsilva/claudebridge
+cd claudebridge
 uv pip install -e .
 
 # Run the server
-claude-code-bridge
+claudebridge
 
 # Verify installed version
-claude-code-bridge --version
+claudebridge --version
 ```
 
 ### Local Development
@@ -99,19 +99,19 @@ The CLI client can be used for ad-hoc testing:
 
 ```bash
 # Direct prompt
-python -m claude_code_bridge.client "What is Python?"
+python -m claudebridge.client "What is Python?"
 
 # Pipe from stdin
-echo "Hello" | python -m claude_code_bridge.client
+echo "Hello" | python -m claudebridge.client
 
 # Use different model
-python -m claude_code_bridge.client --model opus "Explain decorators"
+python -m claudebridge.client --model opus "Explain decorators"
 
 # Non-streaming mode
-python -m claude_code_bridge.client --no-stream "Quick answer"
+python -m claudebridge.client --no-stream "Quick answer"
 
 # Multiple parallel requests
-python -m claude_code_bridge.client -n 3 "Hello"
+python -m claudebridge.client -n 3 "Hello"
 ```
 
 ### BridgeClient Library
@@ -119,7 +119,7 @@ python -m claude_code_bridge.client -n 3 "Hello"
 Use `BridgeClient` programmatically for testing or integration:
 
 ```python
-from claude_code_bridge.client import BridgeClient
+from claudebridge.client import BridgeClient
 
 # Sync usage
 with BridgeClient() as client:
@@ -198,7 +198,7 @@ claude login
 ## Architecture
 
 ```
-claude_code_bridge/
+claudebridge/
 ├── server.py         # FastAPI app, endpoints, Claude SDK integration
 ├── pool.py           # Client pool for connection reuse
 ├── models.py         # Pydantic models for OpenAI request/response format

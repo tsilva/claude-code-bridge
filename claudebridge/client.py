@@ -15,7 +15,7 @@ from openai import AsyncOpenAI, OpenAI
 import openai
 from dotenv import load_dotenv
 
-from claude_code_bridge.url_utils import resolve_bridge_url
+from claudebridge.url_utils import resolve_bridge_url
 
 # Load .env file from current directory or parents
 load_dotenv()
@@ -347,11 +347,11 @@ def _cli_main() -> None:
     parser = argparse.ArgumentParser(
         description="Send a prompt to Claude Code Bridge (or any OpenAI-compatible API).",
         epilog="Examples:\n"
-               "  python -m claude_code_bridge.client 'What is Python?'\n"
-               "  echo 'Hello' | python -m claude_code_bridge.client\n"
-               "  python -m claude_code_bridge.client --model opus 'Explain decorators'\n"
-               "  python -m claude_code_bridge.client -n 3 'Hello'  # 3 parallel requests\n"
-               "  python -m claude_code_bridge.client --no-stream 'Hello'\n",
+               "  python -m claudebridge.client 'What is Python?'\n"
+               "  echo 'Hello' | python -m claudebridge.client\n"
+               "  python -m claudebridge.client --model opus 'Explain decorators'\n"
+               "  python -m claudebridge.client -n 3 'Hello'  # 3 parallel requests\n"
+               "  python -m claudebridge.client --no-stream 'Hello'\n",
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument(

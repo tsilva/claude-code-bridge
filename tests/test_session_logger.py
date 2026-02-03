@@ -12,8 +12,8 @@ from pathlib import Path
 
 import pytest
 
-from claude_code_bridge.session_logger import SessionLogger
-from claude_code_bridge.models import Message
+from claudebridge.session_logger import SessionLogger
+from claudebridge.models import Message
 
 
 @pytest.mark.unit

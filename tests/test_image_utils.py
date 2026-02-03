@@ -9,7 +9,7 @@ Usage:
 
 import pytest
 
-from claude_code_bridge.image_utils import (
+from claudebridge.image_utils import (
     parse_data_url,
     is_http_url,
     is_data_url,
@@ -18,7 +18,7 @@ from claude_code_bridge.image_utils import (
     has_multimodal_content,
     extract_text_from_content,
 )
-from claude_code_bridge.models import (
+from claudebridge.models import (
     Message,
     TextContent,
     ImageUrlContent,

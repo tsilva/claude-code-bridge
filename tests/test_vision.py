@@ -1,8 +1,8 @@
 """
-Vision/OCR tests for claude-code-bridge.
+Vision/OCR tests for claudebridge.
 
 Prerequisites:
-- Server must be running for integration tests: claude-code-bridge
+- Server must be running for integration tests: claudebridge
 
 Usage:
 - Unit tests: pytest tests/test_vision.py::TestImageUtils -v
@@ -14,7 +14,7 @@ from pathlib import Path
 
 import pytest
 
-from claude_code_bridge.image_utils import (
+from claudebridge.image_utils import (
     parse_data_url,
     is_http_url,
     is_data_url,
@@ -23,13 +23,13 @@ from claude_code_bridge.image_utils import (
     has_multimodal_content,
     extract_text_from_content,
 )
-from claude_code_bridge.models import (
+from claudebridge.models import (
     Message,
     TextContent,
     ImageUrlContent,
     ImageUrl,
 )
-from claude_code_bridge.client import BridgeClient
+from claudebridge.client import BridgeClient
 
 
 # Test fixtures path

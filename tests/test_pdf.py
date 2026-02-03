@@ -1,8 +1,8 @@
 """
-PDF extraction tests for claude-code-bridge.
+PDF extraction tests for claudebridge.
 
 Prerequisites:
-- Server must be running for integration tests: claude-code-bridge
+- Server must be running for integration tests: claudebridge
 - fpdf2 must be installed for PDF fixture generation
 
 Usage:
@@ -15,18 +15,18 @@ from pathlib import Path
 
 import pytest
 
-from claude_code_bridge.image_utils import (
+from claudebridge.image_utils import (
     parse_data_url,
     openai_image_to_claude,
     openai_content_to_claude,
     extract_text_from_content,
 )
-from claude_code_bridge.models import (
+from claudebridge.models import (
     TextContent,
     ImageUrlContent,
     ImageUrl,
 )
-from claude_code_bridge.client import BridgeClient
+from claudebridge.client import BridgeClient
 
 from .test_utils import slugify_text, text_similarity
 

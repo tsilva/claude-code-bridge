@@ -9,7 +9,7 @@ Usage:
 
 import pytest
 
-from claude_code_bridge.model_mapping import (
+from claudebridge.model_mapping import (
     resolve_model,
     UnsupportedModelError,
     OPENROUTER_TO_CLAUDE,

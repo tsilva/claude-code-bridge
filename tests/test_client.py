@@ -1,8 +1,8 @@
 """
-Client integration tests for claude-code-bridge.
+Client integration tests for claudebridge.
 
 Prerequisites:
-- Server must be running: claude-code-bridge
+- Server must be running: claudebridge
 
 Usage:
 - pytest tests/test_client.py -v
@@ -10,7 +10,7 @@ Usage:
 
 import pytest
 
-from claude_code_bridge.client import BridgeClient
+from claudebridge.client import BridgeClient
 
 
 @pytest.fixture(scope="module")
