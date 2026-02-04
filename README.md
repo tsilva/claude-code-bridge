@@ -7,7 +7,7 @@
   [![FastAPI](https://img.shields.io/badge/FastAPI-0.115+-009688.svg)](https://fastapi.tiangolo.com)
   [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
-  **Bridge OpenAI-compatible tools to Claude Code SDK — use your Claude subscription with any OpenAI client**
+  **🌉 Bridge OpenAI tools to Claude Code SDK — use your subscription anywhere 🔌**
 
 </div>
 
