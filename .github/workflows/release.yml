@@ -1,0 +1,57 @@
+name: Release
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - pyproject.toml
+      - claudebridge/__init__.py
+
+permissions:
+  contents: write
+  id-token: write
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  test:
+    uses: tsilva/.github/.github/workflows/test.yml@main
+
+  pii-scan:
+    uses: tsilva/.github/.github/workflows/pii-scan.yml@main
+
+  publish-pypi:
+    needs: [test, pii-scan]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: pypi
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check version
+        id: check
+        uses: tsilva/.github/.github/actions/check-version@main
+
+      - name: Setup uv
+        if: steps.check.outputs.tag_exists == 'false'
+        uses: astral-sh/setup-uv@v4
+        with:
+          enable-cache: true
+
+      - name: Build package
+        if: steps.check.outputs.tag_exists == 'false'
+        run: uv build
+
+      - name: Create release
+        if: steps.check.outputs.tag_exists == 'false'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create ${{ steps.check.outputs.tag }} dist/* --generate-notes
+
+      - name: Publish to PyPI
+        if: steps.check.outputs.tag_exists == 'false'
+        uses: pypa/gh-action-pypi-publish@release/v1
